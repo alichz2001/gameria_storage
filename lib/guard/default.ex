@@ -9,5 +9,4 @@ defmodule GameriaStorage.Guard.Default do
 
   @impl GameriaStorage.Guard
   def roleback(_step, _reason, struct), do: {:ok, struct}
-
 end
