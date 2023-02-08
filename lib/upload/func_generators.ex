@@ -42,64 +42,25 @@ defmodule GameriaStorage.Upload.FuncGenerators do
       size_limit
       |> case do
         [duartion: [max: max, min: min]] ->
-          [{:defp, [context: GameriaStorage, imports: [{1, Kernel}, {2, Kernel}]],
-            [
-              {:when, [context: GameriaStorage],
-                [
-                  {:validate_file_size, [],
-                  [
-                    {:=, [],
-                      [
-                        {:%, [],
-                        [
-                          {:__aliases__, [alias: false], [:Ecto, :Changeset]},
-                          {:%{}, [],
-                            [
-                              valid?: true,
-                              changes: {:%{}, [],
-                              [file_size: {:file_size, [], GameriaStorage}]}
-                            ]}
-                        ]},
-                        {:changeset, [], GameriaStorage}
-                      ]}
-                  ]},
-                  {:and, [context: GameriaStorage, imports: [{2, Kernel}]],
-                  [
-                    {:>, [context: GameriaStorage, imports: [{2, Kernel}]],
-                      [{:file_size, [], GameriaStorage}, to_bytes(min)]},
-                    {:<, [context: GameriaStorage, imports: [{2, Kernel}]],
-                      [{:file_size, [], GameriaStorage}, to_bytes(max)]}
-                  ]}
-                ]},
-              [do: {:changeset, [], GameriaStorage}]
-            ]}]
+          [quote do
+            defp validate_file_size(%Ecto.Changeset{valid?: :true, changes: %{file_size: file_size}} = changeset)
+              when file_size < max and file_size > min, do: changeset
+          end]
+          |> Macro.prewalk(fn
+            {:min, _, _} -> to_bytes(min)
+            {:max, _, _} -> to_bytes(max)
+            i -> i
+          end)
         [max: max] ->
-          [{:defp, [context: GameriaStorage, imports: [{1, Kernel}, {2, Kernel}]],
-            [
-              {:when, [context: GameriaStorage],
-                [
-                  {:validate_file_size, [],
-                  [
-                    {:=, [],
-                      [
-                        {:%, [],
-                        [
-                          {:__aliases__, [alias: false], [:Ecto, :Changeset]},
-                          {:%{}, [],
-                            [
-                              valid?: true,
-                              changes: {:%{}, [],
-                              [file_size: {:file_size, [], GameriaStorage}]}
-                            ]}
-                        ]},
-                        {:changeset, [], GameriaStorage}
-                      ]}
-                  ]},
-                  {:<, [context: GameriaStorage, imports: [{2, Kernel}]],
-                  [{:file_size, [], GameriaStorage}, to_bytes(max)]}
-                ]},
-              [do: {:changeset, [], GameriaStorage}]
-            ]}]
+            [quote do
+              defp validate_file_size(%Ecto.Changeset{valid?: :true, changes: %{file_size: file_size}} = changeset)
+                when file_size < max, do: changeset
+            end]
+            |> Macro.prewalk(fn
+              {:max, _, _} -> to_bytes(max)
+              i -> i
+            end)
+
         :none -> []
       end
 
@@ -111,127 +72,24 @@ defmodule GameriaStorage.Upload.FuncGenerators do
   end
 
   def gen_guard_func(guard_module) do
-    guard_atom = guard_module
-    |> Module.split()
-    |> List.last()
-    |> String.to_atom()
+    {:__block__, _, funcs} = quote do
+      defp g_before_move_file(struct) do
+        with {:roleback, reason, struct} <- GuardModule.before_move_file(struct) do
+          GuardModule.roleback(:before_move_file, reason, struct)
+        end
+      end
+      defp g_after_move_file(struct) do
+        with {:roleback, reason, struct} <- GuardModule.after_move_file(struct) do
+          GuardModule.roleback(:after_move_file, reason, struct)
+        end
+      end
+    end
+    |> Macro.prewalk(fn
+      :GuardModule -> guard_module
+      i -> i
+    end)
 
-    [
-      {:defp, [context: GameriaStorage.Upload, imports: [{1, Kernel}, {2, Kernel}]],
-        [
-          {:g_after_move_file, [context: GameriaStorage.Upload],
-            [
-              {:struct,
-              [context: GameriaStorage.Upload, imports: [{1, Kernel}, {2, Kernel}]],
-              GameriaStorage.Upload}
-            ]},
-          [
-            do: {:with, [],
-              [
-                {:<-, [],
-                [
-                  {:{}, [],
-                    [
-                      :roleback,
-                      {:reason, [], GameriaStorage.Upload},
-                      {:struct,
-                      [
-                        context: GameriaStorage.Upload,
-                        imports: [{1, Kernel}, {2, Kernel}]
-                      ], GameriaStorage.Upload}
-                    ]},
-                  {{:., [],
-                    [
-                      {:__aliases__, [alias: guard_module],
-                        [guard_atom]},
-                      :after_move_file
-                    ]}, [],
-                    [
-                      {:struct,
-                      [
-                        context: GameriaStorage.Upload,
-                        imports: [{1, Kernel}, {2, Kernel}]
-                      ], GameriaStorage.Upload}
-                    ]}
-                ]},
-                [
-                  do: {{:., [],
-                    [
-                      {:__aliases__, [alias: guard_module],
-                      [guard_atom]},
-                      :roleback
-                    ]}, [],
-                  [
-                    :after_move_file,
-                    {:reason, [], GameriaStorage.Upload},
-                    {:struct,
-                      [
-                        context: GameriaStorage.Upload,
-                        imports: [{1, Kernel}, {2, Kernel}]
-                      ], GameriaStorage.Upload}
-                  ]}
-                ]
-              ]}
-          ]
-        ]},
-        {:defp, [context: GameriaStorage.Upload, imports: [{1, Kernel}, {2, Kernel}]],
-        [
-          {:g_before_move_file, [context: GameriaStorage.Upload],
-            [
-              {:struct,
-              [context: GameriaStorage.Upload, imports: [{1, Kernel}, {2, Kernel}]],
-              GameriaStorage.Upload}
-            ]},
-          [
-            do: {:with, [],
-              [
-                {:<-, [],
-                [
-                  {:{}, [],
-                    [
-                      :roleback,
-                      {:reason, [], GameriaStorage.Upload},
-                      {:struct,
-                      [
-                        context: GameriaStorage.Upload,
-                        imports: [{1, Kernel}, {2, Kernel}]
-                      ], GameriaStorage.Upload}
-                    ]},
-                  {{:., [],
-                    [
-                      {:__aliases__, [alias: guard_module],
-                        [guard_atom]},
-                      :before_move_file
-                    ]}, [],
-                    [
-                      {:struct,
-                      [
-                        context: GameriaStorage.Upload,
-                        imports: [{1, Kernel}, {2, Kernel}]
-                      ], GameriaStorage.Upload}
-                    ]}
-                ]},
-                [
-                  do: {{:., [],
-                    [
-                      {:__aliases__, [alias: guard_module],
-                      [guard_atom]},
-                      :roleback
-                    ]}, [],
-                  [
-                    :before_move_file,
-                    {:reason, [], GameriaStorage.Upload},
-                    {:struct,
-                      [
-                        context: GameriaStorage.Upload,
-                        imports: [{1, Kernel}, {2, Kernel}]
-                      ], GameriaStorage.Upload}
-                  ]}
-                ]
-              ]}
-          ]
-        ]}
-    ]
+    funcs
   end
 
 end
