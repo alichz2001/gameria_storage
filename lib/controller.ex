@@ -1,6 +1,7 @@
 defmodule GameriaStorage.Controller do
+  alias GameriaStorage.Upload
   @callback upload_token(upload_token :: atom(), conn :: Plug.Conn.t(), params :: map()) :: any()
-  @callback after_upload(
+  @callback render_upload(
               upload_token :: atom(),
               conn :: Plug.Conn.t(),
               params :: map(),
@@ -17,10 +18,15 @@ defmodule GameriaStorage.Controller do
       |> List.first()
       |> String.to_atom()
 
-    use_ast = [
-      {:use, [context: Elixir, imports: [{1, Kernel}, {2, Kernel}]],
-       [{:__aliases__, [alias: false], [web_module]}, :controller]}
-    ]
+    use_ast = [quote do
+      use WebModule, :controller
+    end]
+    # |> IO.inspect()
+    |> Macro.prewalk(fn
+      # i -> i |> IO.inspect()
+      :WebModule -> web_module
+      i -> i
+    end)
 
     {:__block__, [], ast} =
       quote do
@@ -43,12 +49,26 @@ defmodule GameriaStorage.Controller do
        ]}
     ]
 
+    # {:__block__, _, module_attr_ast} =
+    #   quote do
+    #     Module.register_attribute(CallerModule, :upload_modules, persist: :false, accumulate: :false)
+    #     Module.put_attribute(CallerModule, :upload_modules, UploadModules)
+    #   end
+    #   |> Macro.prewalk(fn
+    #     :CallerModule -> __CALLER__.module
+    #     :UploadModules -> upload_modules
+    #     i -> i
+    #   end)
+    #   |> IO.inspect()
+
+
     {:__block__, [], use_ast ++ module_attr_ast ++ ast}
   end
 
   defmacro __before_compile__(env) do
     upload_ast =
       Module.get_attribute(env.module, :upload_modules)
+      |> IO.inspect()
       |> Enum.map(fn module ->
         quote do
           def upload(conn, %{"upload_token" => unquote(module.upload_token)} = params) do
